@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title> UNO Game </title>
+</head>
+
+<body>
+
+  <h1> Welcome </h1>
+
+  UserName: <input type="text" id="userName">
+  GameId: <input type="text" id="gameId">
+  CardPlayed: <input type="text" id="cardPlayed">
+  AnnouncedColor: <input type="text" id="announcedColor">
+
+  <style>
+  #StartGame {
+    display: none
+  }
+
+  #GameStarted {
+    display: none
+  }
+
+  .UsersJoined {
+    display: none
+  }
+  </style>
+
+  <button id="newGameButton" onclick="newGame()">New Game</button>
+  <button id="joinGameButton" onclick="joinGame()">Join Game</button>
+  <button id="StartGame" onclick="startGame()">Start Game</button>
+  <button id="Draw" onclick="drawCards()">Draw Cards</button>
+  <button id="Play" onclick="playCard()">Play Card</button>
+  <p id="CurrentGameId"></p>
+  <div id="UsersJoined" class="UsersJoined">UsersJoined
+    <ul id="UsersJoinedList" class="UsersJoined"></ul>
+  </div>
+  <p id="GameStarted">Game Started</p>
+  <p id="CenterCard"></p>
+  <p id="Deck"></p>
+  <p id="NextTurn"></p>
+  <p id="Winner"></p>
+  <p id="Cards"></p>
+
+
+  <script src="https://www.gstatic.com/firebasejs/4.9.0/firebase.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/4.9.0/firebase-firestore.js"></script>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <script>
+    // Initialize Firebase
+    var config = {
+      apiKey: "<add api key>",
+      authDomain: "uno-game-7c34d.firebaseapp.com",
+      databaseURL: "https://uno-game-7c34d.firebaseio.com",
+      projectId: "uno-game-7c34d",
+      // storageBucket: "uno-game-7c34d.appspot.com",
+      // messagingSenderId: "498739450415"
+    };
+
+    // Initialize Cloud Firestore through Firebase
+    firebase.initializeApp(config);
+    // var db = firebase.firestore();
+
+  </script>
+
+  <script src='index.js'></script>
+
+
+</body>
+
+</html>
