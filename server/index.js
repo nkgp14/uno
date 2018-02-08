@@ -23,12 +23,6 @@ const colorCards = {
   '1': 2, '2': 2, '3': 2, '4': 2, '5': 2, '6': 2, '7': 2, '8': 2, '9': 2,
 }
 const colors = ['r', 'y', 'b', 'g'];
-/* var deck = [];
-for (card in wildCards) {
-  for (var count = 0; count < wildCards[card]; count++) {
-    deck.push(card);
-  }
-} */
 
 // The Firebase Admin SDK to access the Firebase Realtime Database. 
 const admin = require('firebase-admin');
@@ -44,61 +38,61 @@ function isAllowed(centerCard, playedCard, drawExtra, color) {
   var centerCardNumber = centerCard.slice(1);
 
   if (drawExtra === 0) {
-      // there is nothing pending like +4 or +2
-      // wild cards can be played without any issue.
-      // for other cards if color is present then color should match
-      // otherwise centerCard color should match or
-      // the center card number should match.
-      if (playedCard === 'plus4') {
-          return [true, 4]
-      } else if (playedCard === 'wild') {
+    // there is nothing pending like +4 or +2
+    // wild cards can be played without any issue.
+    // for other cards if color is present then color should match
+    // otherwise centerCard color should match or
+    // the center card number should match.
+    if (playedCard === 'plus4') {
+      return [true, 4]
+    } else if (playedCard === 'wild') {
+      return [true, 0];
+    } else if (color !== "") {
+      // announced color is present hence need to follow that
+      if (playedCardColor === color) {
+        if (playedCard.endsWith('plus2')) {
+          return [true, 2];
+        } else {
           return [true, 0];
-      } else if (color !== "") {
-          // announced color is present hence need to follow that
-          if (playedCardColor === color) {
-              if (playedCard.endsWith('plus2')) {
-                  return [true, 2];
-              } else {
-                  return [true, 0];
-              }
-          } else {
-              return [false, 0];
-          }
+        }
       } else {
-          // there is no announced color hence center card matching is required either by color or number
-          if (playedCardColor === centerCardColor) {
-              if (playedCard.endsWith('plus2')) {
-                  return [true, 2];
-              } else {
-                  return [true, 0];
-              }
-          } else if (playedCardNumber === centerCardNumber) {
-              if (playedCard.endsWith('plus2')) {
-                  return [true, 2];
-              } else {
-                  return [true, 0];
-              }
-          } else {
-              return [false, 0];
-          }
+        return [false, 0];
       }
+    } else {
+      // there is no announced color hence center card matching is required either by color or number
+      if (playedCardColor === centerCardColor) {
+        if (playedCard.endsWith('plus2')) {
+          return [true, 2];
+        } else {
+          return [true, 0];
+        }
+      } else if (playedCardNumber === centerCardNumber) {
+        if (playedCard.endsWith('plus2')) {
+          return [true, 2];
+        } else {
+          return [true, 0];
+        }
+      } else {
+        return [false, 0];
+      }
+    }
   } else {
-      // only limited cards can be played, it means center card could only be plus2 or plus4
-      if (centerCard === 'plus4') {
-          if (playedCard === 'plus4') {
-              return [true, drawExtra + 4];
-          } else {
-              return [false, 0];
-          }
-      } else if (centerCard.endsWith('plus2')) {
-          if (playedCard.endsWith('plus2')) {
-              return [true, drawExtra + 2];
-          } else {
-              return [false, 0];
-          }
+    // only limited cards can be played, it means center card could only be plus2 or plus4
+    if (centerCard === 'plus4') {
+      if (playedCard === 'plus4') {
+        return [true, drawExtra + 4];
       } else {
-          console.log("something went wrong ");
+        return [false, 0];
       }
+    } else if (centerCard.endsWith('plus2')) {
+      if (playedCard.endsWith('plus2')) {
+        return [true, drawExtra + 2];
+      } else {
+        return [false, 0];
+      }
+    } else {
+      console.log("something went wrong ");
+    }
   }
 }
 
@@ -124,76 +118,84 @@ exports.playCard = functions.https.onRequest((req, res) => {
   console.log("DrawCard game " + gameId + " userName " + userName);
   res = res.set('Access-Control-Allow-Origin', '*');
   var db = admin.firestore();
-  console.log("DrawCard game " + gameId + " userName " + userName);
 
   // check the turn if it doesn't match with the username then fail
   // validate inputs like announced color etc.
   return db.collection("GameCards").doc(gameId).get().then(doc => {
-      if (!doc.exists) {
-          console.log("Not a valid game Id " + gameId);
-          return res.status(BAD_REQUEST).send("Not valid game id " + gameId + " userName " + userName);
+    if (!doc.exists) {
+      console.log("Not a valid game Id " + gameId);
+      return res.status(BAD_REQUEST).send("Not valid game id " + gameId + " userName " + userName);
+    }
+    if (doc.data().users[doc.data().nextTurn] !== userName) {
+      console.log("Not your turn " + gameId + " user " + userName);
+      return res.status(BAD_REQUEST).send("Not your turn " + gameId + " userName " + userName);
+    }
+
+    // check the card played by the user is valid or not
+    return db.collection("UserCards").doc(userName).collection("Game").doc(gameId).get().then(userDoc => {
+      if (!userDoc.exists) {
+        console.log("UserDoc doesn't exist for this game " + gameId + " userName " + userName);
+        return res.status(BAD_REQUEST).send("UserDoc doesn't exist " + gameId + " userName " + userName);
       }
-      if (doc.data().users[doc.data().nextTurn] !== userName) {
-          console.log("Not your turn " + gameId + " user " + userName);
-          return res.status(BAD_REQUEST).send("Not your turn " + gameId + " userName " + userName);
+
+      var userCards = userDoc.data().cards;
+      var cardIndex = userCards.indexOf(playedCard);
+      if (cardIndex === -1) {
+        console.log("Invalid card " + userName + " " + playedCard);
+        return res.status(BAD_REQUEST).send("Invalid card " + gameId + " userName " + userName + " playedCard " + playedCard);
       }
 
-      // check the card played by the user is valid or not
-      return db.collection("UserCards").doc(userName).collection("Game").doc(gameId).get().then(userDoc => {
-          if (!userDoc.exists) {
-              console.log("UserDoc doesn't exist for this game " + gameId + " userName " + userName);
-              return res.status(BAD_REQUEST).send("UserDoc doesn't exist " + gameId + " userName " + userName);
-          }
+      // TODO put the validations, whether this card can be played or not
+      var allowed = isAllowed(doc.data().centerCard, playedCard, doc.data().drawExtra, doc.data().color);
+      if (!allowed[0]) {
+        console.log("It's not a valid move " + doc.data().centerCard + " " + playedCard);
+        return res.status(BAD_REQUEST).send("Not a valid move " + gameId + " userName " + userName + " playedCard " + playedCard);
+      }
 
-          var userCards = userDoc.data().cards;
-          var cardIndex = userCards.indexOf(playedCard);
-          if (cardIndex === -1) {
-              console.log("Invalid card " + userName + " " + playedCard);
-              return res.status(BAD_REQUEST).send("Invalid card " + gameId + " userName " + userName + " playedCard " + playedCard);
-          }
+      // TODO get the color if it's a wild card
+      var centerColor = "";
+      var nextTurn = (doc.data().nextTurn + 1) % doc.data().users.length;
+      if (playedCard === 'plus4' || playedCard === 'wild') {
+        centerColor = announcedColor;
+      } else if (playedCard.endsWith('skip')) {
+        nextTurn = (nextTurn + 1) % doc.data().users.length;
+      } else if (playedCard.endsWith('reverse')) {
+        nextTurn = doc.data().nextTurn - 1;
+        if (nextTurn === -1) {
+          nextTurn = doc.data().users.length - 1;
+        }
+      } else {
+        // ignore 
+      }
 
-          // TODO put the validations, whether this card can be played or not
-          var allowed = isAllowed(doc.data().centerCard, playedCard, doc.data().drawExtra, doc.data().color);
-          if (!allowed[0]) {
-              console.log("It's not a valid move " + doc.data().centerCard + " " + playedCard);
-              return res.status(BAD_REQUEST).send("Not a valid move " + gameId + " userName " + userName + " playedCard " + playedCard);
-          }
-          console.log("allowed is " + allowed + " for centerCard " + doc.data().centerCard + " playedCard " + playedCard + " drawExtra  " + doc.data().drawExtra + " color " + doc.data().color);
+      // delete the card from the users cards
+      userCards.splice(cardIndex, 1);
+      var drawExtra = allowed[1];
+      var winner = "";
+      if (userCards.length === 0) {
+        winner = userName;
+      }
 
-          // TODO get the color if it's a wild card
-          var centerColor = "";
-          var nextTurn = (doc.data().nextTurn + 1) % doc.data().users.length;
-          if (playedCard === 'plus4' || playedCard === 'wild') {
-              centerColor = announcedColor;
-          } else if (playedCard.endsWith('skip')) {
-              nextTurn = (nextTurn + 1) % doc.data().users.length;
-          } else if (playedCard.endsWith('reverse')) {
-              nextTurn = doc.data().nextTurn - 1;
-              if (nextTurn === -1) {
-                  nextTurn = doc.data().users.length - 1;
-              }
-          } else {
-              // ignore 
-          }
+      // update the center card and the next turn and the user cards.
+      var batch = db.batch();
+      batch.set(db.collection("UserCards").doc(userName).collection("Game").doc(gameId), { 'cards': userCards });
+      var cardCountByUser = doc.data().cardCountByUser;
+      cardCountByUser[userName] = userCards.length;
 
-          // delete the card from the users cards
-          userCards.splice(cardIndex, 1);
-          var drawExtra = allowed[1];
-          var winner = "";
-          if (userCards.length === 0) {
-              winner = userName;
-          }
+      var gameCardsDoc = {
+        "nextTurn": nextTurn,
+        "centerCard": playedCard,
+        "drawExtra": drawExtra,
+        "color": centerColor,
+        "winner": winner,
+        "cardCountByUser": cardCountByUser};
+      batch.update(db.collection("GameCards").doc(gameId), gameCardsDoc);
 
-          // update the center card and the next turn and the user cards.
-          var batch = db.batch();
-          batch.set(db.collection("UserCards").doc(userName).collection("Game").doc(gameId), { 'cards': userCards });
-          batch.update(db.collection("GameCards").doc(gameId), { "nextTurn": nextTurn, "centerCard": playedCard, "drawExtra": drawExtra, "color": centerColor, "winner": winner });
-
-          return batch.commit().then(batchRef => {
-              console.log("PlayCard is all good");
-              return res.end();
-          });
+      return batch.commit().then(batchRef => {
+        console.log("PlayCard is all good");
+        return res.end();
       });
+    });
   });
 });
 
@@ -207,58 +209,66 @@ exports.drawCard = functions.https.onRequest((req, res) => {
 
   // check the turn if it doesn't match with the username then fail
   return db.collection("GameCards").doc(gameId).get().then(doc => {
-      if (!doc.exists) {
-          console.log("Not a valid game Id " + gameId);
-          return res.status(BAD_REQUEST).send("Not a valid game Id " + gameId);
+    if (!doc.exists) {
+      console.log("Not a valid game Id " + gameId);
+      return res.status(BAD_REQUEST).send("Not a valid game Id " + gameId);
+    }
+    if (doc.data().users[doc.data().nextTurn] !== userName) {
+      console.log("Not your turn " + gameId + " user " + userName);
+      return res.status(BAD_REQUEST).send("Not your turn " + gameId + " userName " + userName);
+    }
+
+    // valid turn and game id hence proceed
+    // find how many cards user needs to draw
+    var drawCards = 0;
+    if (doc.data().drawExtra) {
+      drawCards = doc.data().drawExtra;
+    } else {
+      drawCards = 1;
+    }
+
+    console.log("Drawing " + drawCards);
+    var newDeck = doc.data().deck;
+    if (newDeck.length === 0) {
+      return res.status(BAD_REQUEST).send("Deck is empty now!");
+    }
+
+    // update the turn and deck, also reset the draw related to plus4, plus2
+    return db.collection("UserCards").doc(userName).collection("Game").doc(gameId).get().then(userDoc => {
+      if (!userDoc.exists) {
+        console.log("UserDoc doesn't exists for this game " + gameId + " userName " + userName);
+        return res.status(BAD_REQUEST).send("UserDoc doesn't exists " + gameId + " userName " + userName);
       }
-      if (doc.data().users[doc.data().nextTurn] !== userName) {
-          console.log("Not your turn " + gameId + " user " + userName);
-          return res.status(BAD_REQUEST).send("Not your turn " + gameId + " userName " + userName);
+
+      var userCards = userDoc.data().cards;
+      for (var i = 0; i < drawCards; i++) {
+        var tempCard = newDeck.pop();
+        userCards.push(tempCard);
+        console.log("Drawed card " + tempCard);
+        if (newDeck.length === 0) {
+          return res.status(BAD_REQUEST).send("Deck is empty now!");
+        }
       }
 
-      // valid turn and game id hence proceed
-      // find how many cards user needs to draw
-      var drawCards = 0;
-      if (doc.data().drawExtra) {
-          drawCards = doc.data().drawExtra;
-      } else {
-          drawCards = 1;
-      }
+      var nextTurn = (doc.data().nextTurn + 1) % doc.data().users.length;
+      var batch = db.batch();
+      batch.set(db.collection("UserCards").doc(userName).collection("Game").doc(gameId), { 'cards': userCards });
 
-      console.log("Drawing " + drawCards);
-      var newDeck = doc.data().deck;
-      if (newDeck.length === 0) {
-        return res.status(BAD_REQUEST).send("Deck is empty now!");
-      }
+      // Update user card count
+      var cardCountByUser = doc.data().cardCountByUser;
+      cardCountByUser[userName] = userCards.length;
+      var gameCardsDoc =  {
+        "deck": newDeck,
+        "nextTurn": nextTurn,
+        "drawExtra": 0,
+        "cardCountByUser": cardCountByUser};
+      batch.update(db.collection("GameCards").doc(gameId), gameCardsDoc);
 
-      // update the turn and deck, also reset the draw related to plus4, plus2
-      return db.collection("UserCards").doc(userName).collection("Game").doc(gameId).get().then(userDoc => {
-          if (!userDoc.exists) {
-              console.log("UserDoc doesn't exists for this game " + gameId + " userName " + userName);
-              return res.status(BAD_REQUEST).send("UserDoc doesn't exists " + gameId + " userName " + userName);
-          }
-
-          var userCards = userDoc.data().cards;
-          for (var i = 0; i < drawCards; i++) {
-              var tempCard = newDeck.pop();
-              userCards.push(tempCard);
-              console.log("Drawed card " + tempCard);
-              if (newDeck.length === 0) {
-                return res.status(BAD_REQUEST).send("Deck is empty now!");
-              }
-          }
-          console.log("userCards length " + userDoc.data().cards.length + " " + userCards.length + " deck " + doc.data().deck.length + " " + newDeck.length);
-          var nextTurn = (doc.data().nextTurn + 1) % doc.data().users.length;
-          console.log("next turn will be " + nextTurn);
-
-          var batch = db.batch();
-          batch.set(db.collection("UserCards").doc(userName).collection("Game").doc(gameId), { 'cards': userCards });
-          batch.update(db.collection("GameCards").doc(gameId), { "deck": newDeck, "nextTurn": nextTurn, "drawExtra": 0 });
-          return batch.commit().then(batchRef => {
-              console.log("Draw is all good");
-              return res.end();
-          });
+      return batch.commit().then(batchRef => {
+        console.log("Draw is all good");
+        return res.end();
       });
+    });
   });
 });
 
@@ -336,12 +346,15 @@ exports.startGame = functions.https.onRequest((req, res) => {
       var userCards = [];
       var nextTurn = Math.floor(Math.random() * users.length);
       var nextTurnCounter = 0;
+      var initialCardCount = 7;
+      var cardCountByUser = {}
       for (var i = 0; i < 7; i++) {
         var counter = 0;
         for (let user of users) {
           nextTurnCounter += 1;
           if (i === 0) {
             userCards.push([]);
+            cardCountByUser[user] = initialCardCount;
           }
           userCards[counter].push(deck.pop());
           counter++;
@@ -373,7 +386,18 @@ exports.startGame = functions.https.onRequest((req, res) => {
       console.log("after doing tempdeck deck size " + deck.length);
 
       console.log("nextturn is " + nextTurn + " size " + users.size);
-      batch.set(db.collection("GameCards").doc(gameId), { "centerCard": centerCard, "deck": deck, "nextTurn": nextTurn, "users": users, "drawExtra": drawExtra, "color": "", "winner": "" });
+
+      var gameCardsDoc = {
+        "centerCard": centerCard,
+        "deck": deck,
+        "nextTurn": nextTurn,
+        "users": users,
+        "cardCountByUser": cardCountByUser,
+        "drawExtra": drawExtra,
+        "color": "",
+        "winner": ""};
+      batch.set(db.collection("GameCards").doc(gameId), gameCardsDoc);
+
       console.log("userCards are " + userCards);
       counter = 0;
       for (let user of users) {
@@ -395,25 +419,6 @@ exports.startGame = functions.https.onRequest((req, res) => {
   });
 
 });
-
-/*Listens for new messages added to /messages/:pushId/original and creates an
-// uppercase version of the message to /messages/:pushId/uppercase
-exports.makeUppercase = functions.database.ref('/messages/{pushId}/original')
-  .onWrite(event => {
-    // Grab the current value of what was written to the Realtime Database.
-    const original = event.data.val();
-    console.log('Uppercasing', event.params.pushId, original);
-    const uppercase = original.toUpperCase();
-    // You must return a Promise when performing asynchronous tasks inside a Functions such as
-    // writing to the Firebase Realtime Database.
-    // Setting an "uppercase" sibling in the Realtime Database returns a Promise.
-    var response;
-    for (i = 0; i < 5; i++) {
-      response = event.data.ref.parent.child('uppercase').child(i).set(uppercase);
-    }
-    return response;
-  }); */
-
 
 function validateGameId(snapshot, gameId) {
   if (!snapshot.val()) {
